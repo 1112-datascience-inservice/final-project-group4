@@ -27,7 +27,9 @@ test <- test[, -1]
 ggplot(train, aes(x = SalePrice)) +
   geom_density() +
   geom_histogram(aes(y = ..density..), alpha = 0.5, fill = "lightblue") +
-  stat_function(fun = dnorm, args = list(mean = mean(train$SalePrice), sd = sd(train$SalePrice)), color = "red") +
+  stat_function(fun = dnorm
+    , args = list(mean = mean(train$SalePrice)
+    , sd = sd(train$SalePrice)), color = "red") +
   labs(x = "SalePrice", y = "Density") +
   ggtitle("SalePrice Distribution")
 
@@ -50,7 +52,9 @@ train$SalePrice <- log1p(train$SalePrice)
 ggplot(train, aes(x = SalePrice)) +
   geom_density() +
   geom_histogram(aes(y = ..density..), alpha = 0.5, fill = "lightblue") +
-  stat_function(fun = dnorm, args = list(mean = mean(train$SalePrice), sd = sd(train$SalePrice)), color = "red") +
+  stat_function(fun = dnorm
+    , args = list(mean = mean(train$SalePrice)
+    , sd = sd(train$SalePrice)), color = "red") +
   labs(x = "SalePrice", y = "Density") +
   ggtitle("SalePrice Distribution")
 
@@ -65,6 +69,7 @@ qqnorm(train$SalePrice, main = "QQ-plot")
 qqline(train$SalePrice)
 grid()
 
+# 遺失值處理
 ntrain <- nrow(train)
 ntest <- nrow(test)
 y_train <- train$SalePrice
@@ -75,13 +80,41 @@ cat(paste("all_data size is :", dim(all_data), "\n"))
 all_data_na <- (colSums(is.na(all_data)) / nrow(all_data)) * 100
 all_data_na <- all_data_na[all_data_na > 0]
 all_data_na <- sort(all_data_na, decreasing = TRUE)[1:30]
-missing_data <- data.frame('Missing Ratio' = all_data_na)
+missing_data <- data.frame("Missing Ratio" = all_data_na)
 head(missing_data, 20)
 
 par(mfrow = c(1, 1))
-barplot(all_data_na, horiz = TRUE, cex.names = 0.8, las = 2, main = "Percent missing data by feature",
-        xlab = "Percent of missing values", ylab = "Features")
-axis(side = 2, at = 1:length(all_data_na), labels = all_data_na.index, las = 1)
+barplot(all_data_na, horiz = TRUE
+  , cex.names = 0.8, las = 2
+  , main = "Percent missing data by feature"
+  , xlab = "Percent of missing values", ylab = "Features")
 box()
-title(main = "Percent missing data by feature", xlab = "Percent of missing values", ylab = "Features", cex.main = 1, cex.lab = 1)
 
+# 用 "None" 或 0 填充缺失值
+none_col <- c("PoolQC", "MiscFeature", "Alley", "Fence", "FireplaceQu"
+  , "MasVnrType", "GarageType", "GarageFinish", "GarageQual", "GarageCond"
+  , "BsmtQual", "BsmtCond", "BsmtExposure", "BsmtFinType1", "BsmtFinType2")
+
+all_data[, none_col] <- lapply(all_data[, none_col]
+  , function(x) ifelse(is.na(x), "None", x))
+
+zero_col <- c("MasVnrArea", "GarageYrBlt", "GarageArea"
+  , "GarageCars", "BsmtFinSF1", "BsmtFinSF2", "BsmtUnfSF"
+  , "TotalBsmtSF", "BsmtFullBath", "BsmtHalfBath")
+
+all_data[, zero_col] <- lapply(all_data[, zero_col]
+  , function(x) ifelse(is.na(x), "None", x))
+
+# 缺失較少的類別型特徵，用眾數填補缺失值
+
+mode_col <- c("MSZoning", "Electrical", "KitchenQual"
+  , "Exterior1st", "Exterior2nd", "SaleType")
+
+mode_naomit <- function(x) {
+  ux <- na.omit(unique(x) )
+  tab <- tabulate(match(x, ux))
+  ux[tab == max(tab) ]
+}
+
+all_data[, mode_col] <- lapply(all_data[, mode_col]
+  , function(x) ifelse(is.na(x), mode_naomit(x), x))
