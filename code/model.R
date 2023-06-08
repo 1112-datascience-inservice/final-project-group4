@@ -5,6 +5,7 @@ library(MASS)
 library(caret)
 library(janitor)
 library(xgboost)
+library(randomForest)
 
 
 train <- read.table("data/train.csv", sep = ",", header = TRUE)
@@ -178,12 +179,13 @@ test_data <- all_data_encoded[test_id, ]
 train_data$SalePrice <- y_train
 
 # xgboost
-xgboost_kfold <- function(data, k, target_col) {
+xgb_kfold <- function(data, k, target_col) {
   indices <- sample(1:k, nrow(data), replace = TRUE)
   folds <- lapply(1:k, function(i) data[indices == i, ])
 
   models <- vector("list", k)
   predictions <- vector("list", k)
+  ground_truth <- vector("list", k)
   rmse <- vector("numeric", k)
 
   for (i in 1:k) {
@@ -205,9 +207,16 @@ xgboost_kfold <- function(data, k, target_col) {
 
     models[[i]] <- xgb_model
     predictions[[i]] <- y_pred
+    ground_truth[[i]] <- y_test
   }
   avg_rmse <- mean(rmse)
-  return(list(models = models, predictions = predictions, rmse = avg_rmse))
+  return(list(
+    models = models
+    , predictions = predictions
+    , ground_truth = ground_truth
+    , rmse = avg_rmse
+    )
+  )
 }
 
 glm_kfold <- function(data, k, target_col, family = gaussian()) {
@@ -216,6 +225,7 @@ glm_kfold <- function(data, k, target_col, family = gaussian()) {
 
   models <- vector("list", k)
   predictions <- vector("list", k)
+  ground_truth <- vector("list", k)
   rmse <- vector("numeric", k)
 
   for (i in 1:k) {
@@ -243,14 +253,75 @@ glm_kfold <- function(data, k, target_col, family = gaussian()) {
     # 儲存模型和預測結果
     models[[i]] <- glm_model
     predictions[[i]] <- y_pred
+    ground_truth[[i]] <- y_test
   }
-
   avg_rmse <- mean(rmse)
-  return(list(models = models, predictions = predictions, rmse = avg_rmse))
+  return(list(
+    models = models
+    , predictions = predictions
+    , ground_truth <- ground_truth
+    , rmse = avg_rmse
+    )
+  )
 }
 
-xgboost_outcome <- xgboost_kfold(train_data, 5, "SalePrice")
+rf_kfold <- function(data, k, target_col, ntree = 500) {
+  indices <- sample(1:k, nrow(data), replace = TRUE)
+  folds <- lapply(1:k, function(i) data[indices == i, ])
+
+  models <- vector("list", k)
+  predictions <- vector("list", k)
+  ground_truth <- vector("list", k)
+  rmse <- vector("numeric", k)
+
+  for (i in 1:k) {
+    # 分割資料為訓練集和測試集
+    test_data <- folds[[i]]
+    train_data <- do.call(rbind, folds[-i])
+
+    # 分割特徵和目標變數
+    x_train <- train_data[, !(names(train_data) %in% target_col)]
+    y_train <- train_data[[target_col]]
+    x_test <- test_data[, !(names(test_data) %in% target_col)]
+    y_test <- test_data[[target_col]]
+
+    # 建立 Random Forest 模型
+    rf_model <- randomForest(
+      x = x_train
+      , y = y_train
+      , ntree = ntree
+    )
+
+    # 使用模型進行預測
+    y_pred <- predict(rf_model, newdata = x_test)
+
+    # 計算RMSE
+    rmse[i] <- sqrt(mean((y_test - y_pred) ^ 2))
+
+    # 儲存模型和預測結果
+    models[[i]] <- rf_model
+    predictions[[i]] <- y_pred
+    ground_truth[[i]] <- y_test
+  }
+  avg_rmse <- mean(rmse)
+  return(list(
+    models = models
+    , predictions = predictions
+    , ground_truth <- ground_truth
+    , rmse = avg_rmse
+    )
+  )
+}
+
+
+xgb_outcome <- xgb_kfold(train_data, 5, "SalePrice")
 glm_outcome <- glm_kfold(train_data, 5, "SalePrice")
+rf_outcome <- rf_kfold(train_data, 5, "SalePrice")
+
+
+
+
+
 
 
 
