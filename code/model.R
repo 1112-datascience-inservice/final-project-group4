@@ -172,28 +172,85 @@ encoded_data <- as.data.frame(predict(dummy_variables, newdata = all_data))
 # 合併原始數據與 One-Hot Encoding 結果
 all_data_encoded <- cbind(all_data[c(numeric_feats)], encoded_data)
 
-names(all_data_encoded) <- gsub(" ", "_", names(all_data_encoded))
-names(all_data_encoded) <- gsub("\\.", "_", names(all_data_encoded))
-names(all_data_encoded) <- gsub("\\(", "_", names(all_data_encoded))
-names(all_data_encoded) <- gsub("\\)", "_", names(all_data_encoded))
-
 train_data <- all_data_encoded[train_id, ]
 test_data <- all_data_encoded[test_id, ]
 
-# train_data$SalePrice <- y_train
+train_data$SalePrice <- y_train
 
+# xgboost
+xgboost_kfold <- function(data, k, target_col) {
+  indices <- sample(1:k, nrow(data), replace = TRUE)
+  folds <- lapply(1:k, function(i) data[indices == i, ])
 
-model <- glm(
-  SalePrice ~ .
-  , data = train_data
-)
+  models <- vector("list", k)
+  predictions <- vector("list", k)
+  rmse <- vector("numeric", k)
 
+  for (i in 1:k) {
+    test <- folds[[i]]
+    train <- do.call(rbind, folds[-i])
+    x_train <- train[, !(names(train_data) %in% target_col)]
+    y_train <- train[[target_col]]
+    x_test <- test[, !(names(train_data) %in% target_col)]
+    y_test <- test[[target_col]]
 
-model_xg <- xgboost(
-  data = as.matrix(train_data)
-  , label = y_train
-  , nrounds = 500
-)
+    xgb_model <- xgboost(
+        data = as.matrix(x_train)
+        , label = y_train
+        , nrounds = 40
+        , verbose = 0
+    )
+    y_pred <- predict(xgb_model, as.matrix(x_test))
+    rmse[i] <- sqrt(mean((y_test - y_pred) ^ 2))
+
+    models[[i]] <- xgb_model
+    predictions[[i]] <- y_pred
+  }
+  avg_rmse <- mean(rmse)
+  return(list(models = models, predictions = predictions, rmse = avg_rmse))
+}
+
+glm_kfold <- function(data, k, target_col, family = gaussian()) {
+  indices <- sample(1:k, nrow(data), replace = TRUE)
+  folds <- lapply(1:k, function(i) data[indices == i, ])
+
+  models <- vector("list", k)
+  predictions <- vector("list", k)
+  rmse <- vector("numeric", k)
+
+  for (i in 1:k) {
+    # 分割資料為訓練集和測試集
+    test_data <- folds[[i]]
+    train_data <- do.call(rbind, folds[-i])
+
+    # 分割特徵和目標變數
+    x_test <- test_data[, !(names(test_data) %in% target_col)]
+    y_test <- test_data[[target_col]]
+
+    # 建立 glm 模型
+    glm_model <- glm(
+      formula = paste(target_col, "~ .")
+      , data = train_data
+      , family = family
+    )
+
+    # 使用模型進行預測
+    y_pred <- predict(glm_model, newdata = x_test)
+
+    # 計算RMSE
+    rmse[i] <- sqrt(mean((y_test - y_pred) ^ 2))
+
+    # 儲存模型和預測結果
+    models[[i]] <- glm_model
+    predictions[[i]] <- y_pred
+  }
+
+  avg_rmse <- mean(rmse)
+  return(list(models = models, predictions = predictions, rmse = avg_rmse))
+}
+
+xgboost_outcome <- xgboost_kfold(train_data, 5, "SalePrice")
+glm_outcome <- glm_kfold(train_data, 5, "SalePrice")
 
 
 
