@@ -1,11 +1,12 @@
 # [Group4] your projrct title
-The goals of this project.
+Predict House Sales Prices
 
 ## Contributors
 |組員|系級|學號|工作分配|
 |孫詩傑|資科碩專二|110971006|程式碼建構、簡報製作|
-|何彥南|資科碩二|110753202|團隊中的吉祥物🦒，負責增進團隊氣氛| 
-|張小銘|資科碩二|xxxxxxxxx|團隊的中流砥柱，一個人打十個|
+|xxx|資科碩專二|xxx|團隊中的吉祥物🦒，負責增進團隊氣氛| 
+|xxx|資科碩專二|xxx|團隊的中流砥柱，一個人打十個|
+|xxx|資科碩專二|xxx|團隊的中流砥柱，一個人打十個|
 
 ## Quick start
 You might provide an example commend or few commends to reproduce your analysis, i.e., the following R script
