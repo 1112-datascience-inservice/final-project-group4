@@ -6,6 +6,8 @@ library(caret)
 library(janitor)
 library(xgboost)
 library(randomForest)
+library(fitdistrplus)
+library(lightgbm)
 
 
 train <- read.table("data/train.csv", sep = ",", header = TRUE)
@@ -75,7 +77,7 @@ all_data_na <- (colSums(is.na(all_data)) / nrow(all_data)) * 100
 all_data_na <- all_data_na[all_data_na > 0]
 all_data_na <- sort(all_data_na, decreasing = TRUE)[1:30]
 missing_data <- data.frame("Missing Ratio" = all_data_na)
-head(missing_data, 20)
+
 
 par(mfrow = c(1, 1))
 barplot(all_data_na, horiz = TRUE
@@ -199,7 +201,7 @@ xgb_kfold <- function(data, k, target_col) {
     xgb_model <- xgboost(
         data = as.matrix(x_train)
         , label = y_train
-        , nrounds = 40
+        , nrounds = 100
         , verbose = 0
     )
     y_pred <- predict(xgb_model, as.matrix(x_test))
@@ -218,7 +220,6 @@ xgb_kfold <- function(data, k, target_col) {
     )
   )
 }
-
 glm_kfold <- function(data, k, target_col, family = gaussian()) {
   indices <- sample(1:k, nrow(data), replace = TRUE)
   folds <- lapply(1:k, function(i) data[indices == i, ])
@@ -259,12 +260,11 @@ glm_kfold <- function(data, k, target_col, family = gaussian()) {
   return(list(
     models = models
     , predictions = predictions
-    , ground_truth <- ground_truth
+    , ground_truth = ground_truth
     , rmse = avg_rmse
     )
   )
 }
-
 rf_kfold <- function(data, k, target_col, ntree = 500) {
   indices <- sample(1:k, nrow(data), replace = TRUE)
   folds <- lapply(1:k, function(i) data[indices == i, ])
@@ -307,32 +307,74 @@ rf_kfold <- function(data, k, target_col, ntree = 500) {
   return(list(
     models = models
     , predictions = predictions
-    , ground_truth <- ground_truth
+    , ground_truth = ground_truth
     , rmse = avg_rmse
     )
   )
 }
 
 
-xgb_outcome <- xgb_kfold(train_data, 5, "SalePrice")
-glm_outcome <- glm_kfold(train_data, 5, "SalePrice")
-rf_outcome <- rf_kfold(train_data, 5, "SalePrice")
+xgb_outcome <- xgb_kfold(train_data, 3, "SalePrice")
+glm_outcome <- glm_kfold(train_data, 3, "SalePrice")
+rf_outcome <- rf_kfold(train_data, 3, "SalePrice")
 
 
-
-
-
-
-
-
-
-
-output <- data.frame(
-  ID = test_id
-  , SalePrice = expm1(predict(model_xg, as.matrix(test_data)))
+meta_data <- data.frame(
+  xgb_pre = unlist(xgb_outcome$predictions)
+  , glm_pre = unlist(glm_outcome$predictions)
+  , rf_pre = unlist(rf_outcome$predictions)
+  , y = unlist(xgb_outcome$ground_truth)
 )
 
 
+xgb_predict <- function(models, test_data) {
+  num_models <- length(models)
+  predictions <- vector("list", num_models)
+
+  for (i in 1:num_models) {
+    model <- models[[i]]
+    predictions[[i]] <- predict(model, as.matrix(test_data))
+  }
+
+  avg_predictions <- rowMeans(do.call(cbind, predictions))
+  return(avg_predictions)
+}
+glm_predict <- function(models, test_data) {
+  num_models <- length(models)
+  predictions <- vector("list", num_models)
+
+  for (i in 1:num_models) {
+    model <- models[[i]]
+    predictions[[i]] <- predict(model, test_data)
+  }
+
+  avg_predictions <- rowMeans(do.call(cbind, predictions))
+  return(avg_predictions)
+}
+
+
+meta_data_test <- data.frame(
+  xgb_pre = xgb_predict(xgb_outcome$models, test_data)
+  , glm_pre = glm_predict(glm_outcome$models, test_data)
+  , rf_pre = glm_predict(glm_outcome$models, test_data)
+)
+
+weight_sum <- sum(
+  1 / xgb_outcome$rmse
+  , 1 / glm_outcome$rmse
+  , 1 / rf_outcome$rmse
+)
+
+meta_data_test$xgb_pre <- meta_data_test$xgb_pre * 1 / xgb_outcome$rmse / weight_sum
+meta_data_test$glm_pre <- meta_data_test$glm_pre * 1 / glm_outcome$rmse / weight_sum
+meta_data_test$rf_pre <- meta_data_test$rf_pre * 1 / rf_outcome$rmse / weight_sum
+
+pre <- apply(meta_data_test, 1, sum)
+
+output <- data.frame(
+  ID = test_id
+  , SalePrice = expm1(pre)
+)
 
 write.table(output, file = "output.csv"
     , sep = ","
@@ -340,3 +382,82 @@ write.table(output, file = "output.csv"
     , quote = FALSE
     , row.names = FALSE
 )
+
+
+
+
+# #grid search
+# #create hyperparameter grid
+# hyper_grid <- expand.grid(
+#   max_depth = seq(7, 10, 1)
+#   , num_leaves = seq(30, 35, 1)
+#   , num_iterations = seq(210, 300, 30)
+#   , learning_rate = seq(.1, .2, .05)
+# )
+# hyper_grid <- unique(hyper_grid)
+
+# nrow(hyper_grid)
+
+# # lgb_data <- lgb.Dataset(
+# #   as.matrix(meta_data[, -ncol(meta_data)])
+# #   , label = meta_data$y
+# # )
+
+# lightgbm_hyperparameter_tuning <- function(data, target_col, hyper_grid) {
+#   num_models <- nrow(hyper_grid)
+#   models <- vector("list", num_models)
+#   rmse_scores <- vector("numeric", num_models)
+
+#   for (i in 1:num_models) {
+#     params <- hyper_grid[i, ]
+#     max_depth <- as.integer(params[["max_depth"]])
+#     num_leaves <- as.integer(params[["num_leaves"]])
+#     num_iterations <- as.integer(params[["num_iterations"]])
+#     learning_rate <- params[["learning_rate"]]
+
+#     lgb_data <- lgb.Dataset(
+#       data = as.matrix(data[, !(names(data) %in% target_col)])
+#       , label = data[[target_col]]
+#     )
+
+#     model <- lgb.train(
+#       data = lgb_data,
+#       params = list(
+#         objective = "regression",
+#         metric = "rmse",
+#         max_depth = max_depth,
+#         num_leaves = num_leaves,
+#         num_iterations = num_iterations,
+#         learning_rate = learning_rate
+#       )
+#     )
+
+#     models[[i]] <- model
+#     model_pre <- predict(
+#       model
+#       , as.matrix(data[, !(names(data) %in% target_col)])
+#     )
+#     rmse_scores[i] <- sqrt(mean((data[[target_col]] - model_pre) ^ 2))
+#   }
+
+#   best_model_index <- which.min(rmse_scores)
+#   best_model <- models[[best_model_index]]
+#   best_params <- hyper_grid[best_model_index, ]
+#   best_rmse <- rmse_scores[best_model_index ]
+
+#   return(list(
+#     best_model = best_model,
+#     best_params = best_params,
+#     rmse_scores = best_rmse
+#   ))
+# }
+
+
+# lightgbm_best <- lightgbm_hyperparameter_tuning(
+#   data = meta_data
+#   , target_col = "y"
+#   , hyper_grid = hyper_grid
+# )
+
+
+# lgb_test_pre <- predict(lightgbm_best$best_model, as.matrix(meta_data_test))
