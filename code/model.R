@@ -193,33 +193,73 @@ xgb_kfold <- function(data, k, target_col) {
   for (i in 1:k) {
     test <- folds[[i]]
     train <- do.call(rbind, folds[-i])
-    x_train <- train[, !(names(train_data) %in% target_col)]
+    x_train <- train[, !(names(train) %in% target_col)]
     y_train <- train[[target_col]]
-    x_test <- test[, !(names(train_data) %in% target_col)]
+    x_test <- test[, !(names(test) %in% target_col)]
     y_test <- test[[target_col]]
 
-    xgb_model <- xgboost(
-        data = as.matrix(x_train)
-        , label = y_train
-        , nrounds = 100
-        , verbose = 0
+    # Hyperparameter tuning
+    best_rmse <- Inf
+    best_params <- NULL
+    params_grid <- list(
+      nrounds = seq(100, 300, 50),
+      max_depth = seq(3, 11, 2),
+      eta = c(0.01, 0.05, 0.1)
     )
-    y_pred <- predict(xgb_model, as.matrix(x_test))
+
+    for (nrounds in params_grid$nrounds) {
+      for (max_depth in params_grid$max_depth) {
+        for (eta in params_grid$eta) {
+          xgb_model <- xgboost(
+            data = as.matrix(x_train),
+            label = y_train,
+            nrounds = nrounds,
+            max_depth = max_depth,
+            eta = eta,
+            verbose = 0
+          )
+          y_pred <- predict(xgb_model, as.matrix(x_test))
+          current_rmse <- sqrt(mean((y_test - y_pred) ^ 2))
+
+          if (current_rmse < best_rmse) {
+            best_rmse <- current_rmse
+            best_params <- list(
+              nrounds = nrounds
+              , max_depth = max_depth
+              , eta = eta
+            )
+          }
+        }
+      }
+    }
+
+    # Train model with best parameters
+    best_xgb_model <- xgboost(
+      data = as.matrix(x_train),
+      label = y_train,
+      nrounds = best_params$nrounds,
+      max_depth = best_params$max_depth,
+      eta = best_params$eta,
+      verbose = 0
+    )
+
+    y_pred <- predict(best_xgb_model, as.matrix(x_test))
     rmse[i] <- sqrt(mean((y_test - y_pred) ^ 2))
 
-    models[[i]] <- xgb_model
+    models[[i]] <- best_xgb_model
     predictions[[i]] <- y_pred
     ground_truth[[i]] <- y_test
   }
+
   avg_rmse <- mean(rmse)
   return(list(
-    models = models
-    , predictions = predictions
-    , ground_truth = ground_truth
-    , rmse = avg_rmse
-    )
-  )
+    models = models,
+    predictions = predictions,
+    ground_truth = ground_truth,
+    rmse = avg_rmse
+  ))
 }
+
 glm_kfold <- function(data, k, target_col, family = gaussian()) {
   indices <- sample(1:k, nrow(data), replace = TRUE)
   folds <- lapply(1:k, function(i) data[indices == i, ])
@@ -265,6 +305,8 @@ glm_kfold <- function(data, k, target_col, family = gaussian()) {
     )
   )
 }
+
+
 rf_kfold <- function(data, k, target_col, ntree = 500) {
   indices <- sample(1:k, nrow(data), replace = TRUE)
   folds <- lapply(1:k, function(i) data[indices == i, ])
@@ -285,38 +327,65 @@ rf_kfold <- function(data, k, target_col, ntree = 500) {
     x_test <- test_data[, !(names(test_data) %in% target_col)]
     y_test <- test_data[[target_col]]
 
-    # 建立 Random Forest 模型
-    rf_model <- randomForest(
-      x = x_train
-      , y = y_train
-      , ntree = ntree
+    # 超參數調整
+    best_rmse <- Inf
+    best_params <- NULL
+    params_grid <- list(
+      mtry = seq(10, 90, 20),
+      nodesize = seq(10, 50, 20)
     )
 
-    # 使用模型進行預測
-    y_pred <- predict(rf_model, newdata = x_test)
+    for (mtry in params_grid$mtry) {
+      for (nodesize in params_grid$nodesize) {
+        rf_model <- randomForest(
+          x = x_train,
+          y = y_train,
+          ntree = ntree,
+          mtry = mtry,
+          nodesize = nodesize
+        )
+        y_pred <- predict(rf_model, newdata = x_test)
+        current_rmse <- sqrt(mean((y_test - y_pred) ^ 2))
 
-    # 計算RMSE
+        if (current_rmse < best_rmse) {
+          best_rmse <- current_rmse
+          best_params <- list(mtry = mtry, nodesize = nodesize)
+        }
+      }
+    }
+
+    # 使用最佳參數重新訓練模型
+    best_rf_model <- randomForest(
+      x = x_train,
+      y = y_train,
+      ntree = ntree,
+      mtry = best_params$mtry,
+      nodesize = best_params$nodesize
+    )
+
+    # 使用最佳模型進行預測
+    y_pred <- predict(best_rf_model, newdata = x_test)
     rmse[i] <- sqrt(mean((y_test - y_pred) ^ 2))
 
-    # 儲存模型和預測結果
-    models[[i]] <- rf_model
+    models[[i]] <- best_rf_model
     predictions[[i]] <- y_pred
     ground_truth[[i]] <- y_test
   }
+
   avg_rmse <- mean(rmse)
   return(list(
-    models = models
-    , predictions = predictions
-    , ground_truth = ground_truth
-    , rmse = avg_rmse
-    )
-  )
+    models = models,
+    predictions = predictions,
+    ground_truth = ground_truth,
+    rmse = avg_rmse
+  ))
 }
 
 
-xgb_outcome <- xgb_kfold(train_data, 3, "SalePrice")
-glm_outcome <- glm_kfold(train_data, 3, "SalePrice")
-rf_outcome <- rf_kfold(train_data, 3, "SalePrice")
+
+xgb_outcome <- xgb_kfold(train_data, 5, "SalePrice")
+glm_outcome <- glm_kfold(train_data, 5, "SalePrice")
+rf_outcome <- rf_kfold(train_data, 5, "SalePrice")
 
 
 meta_data <- data.frame(
