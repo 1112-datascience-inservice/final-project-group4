@@ -182,6 +182,7 @@ train_data$SalePrice <- y_train
 
 # xgboost
 xgb_kfold <- function(data, k, target_col) {
+  set.seed(123)
   indices <- sample(1:k, nrow(data), replace = TRUE)
   folds <- lapply(1:k, function(i) data[indices == i, ])
 
@@ -261,6 +262,7 @@ xgb_kfold <- function(data, k, target_col) {
 }
 
 glm_kfold <- function(data, k, target_col, family = gaussian()) {
+  set.seed(123)
   indices <- sample(1:k, nrow(data), replace = TRUE)
   folds <- lapply(1:k, function(i) data[indices == i, ])
 
@@ -308,6 +310,7 @@ glm_kfold <- function(data, k, target_col, family = gaussian()) {
 
 
 rf_kfold <- function(data, k, target_col, ntree = 500) {
+  set.seed(123)
   indices <- sample(1:k, nrow(data), replace = TRUE)
   folds <- lapply(1:k, function(i) data[indices == i, ])
 
@@ -396,6 +399,81 @@ meta_data <- data.frame(
 )
 
 
+#grid search
+#create hyperparameter grid
+hyper_grid <- expand.grid(
+  max_depth = seq(3, 9, 2)
+  , num_leaves = seq(10, 30, 10)
+  , num_iterations = seq(20, 100, 20)
+  , learning_rate = seq(.3, .5, .1)
+)
+hyper_grid <- unique(hyper_grid)
+
+
+lightgbm_hyperparameter_tuning <- function(data, target_col, hyper_grid) {
+  set.seed(123)
+  num_models <- nrow(hyper_grid)
+  models <- vector("list", num_models)
+  rmse_scores <- vector("numeric", num_models)
+
+  for (i in 1:num_models) {
+    params <- hyper_grid[i, ]
+    max_depth <- as.integer(params[["max_depth"]])
+    num_leaves <- as.integer(params[["num_leaves"]])
+    num_iterations <- as.integer(params[["num_iterations"]])
+    learning_rate <- params[["learning_rate"]]
+
+    lgb_data <- lgb.Dataset(
+      data = as.matrix(data[, !(names(data) %in% target_col)])
+      , label = data[[target_col]]
+    )
+
+    model <- lgb.train(
+      data = lgb_data,
+      params = list(
+        objective = "regression",
+        metric = "rmse",
+        max_depth = max_depth,
+        num_leaves = num_leaves,
+        num_iterations = num_iterations,
+        learning_rate = learning_rate
+      )
+    )
+
+    models[[i]] <- model
+    model_pre <- predict(
+      model
+      , as.matrix(data[, !(names(data) %in% target_col)])
+    )
+    rmse_scores[i] <- sqrt(mean((data[[target_col]] - model_pre) ^ 2))
+  }
+
+  best_model_index <- which.min(rmse_scores)
+  best_model <- models[[best_model_index]]
+  best_params <- hyper_grid[best_model_index, ]
+  best_rmse <- rmse_scores[best_model_index ]
+
+  return(list(
+    best_model = best_model,
+    best_params = best_params,
+    rmse_scores = best_rmse
+  ))
+}
+
+
+lightgbm_best <- lightgbm_hyperparameter_tuning(
+  data = meta_data
+  , target_col = "y"
+  , hyper_grid = hyper_grid
+)
+
+meta_data_test <- data.frame(
+  xgb_pre = xgb_predict(xgb_outcome$models, test_data)
+  , glm_pre = glm_predict(glm_outcome$models, test_data)
+  , rf_pre = glm_predict(glm_outcome$models, test_data)
+)
+
+
 xgb_predict <- function(models, test_data) {
   num_models <- length(models)
   predictions <- vector("list", num_models)
@@ -428,6 +506,24 @@ meta_data_test <- data.frame(
   , rf_pre = glm_predict(glm_outcome$models, test_data)
 )
 
+
+
+lgb_test_pre <- predict(lightgbm_best$best_model, as.matrix(meta_data_test))
+
+
+output <- data.frame(
+  ID = test_id
+  , SalePrice = expm1(lgb_test_pre)
+)
+
+write.table(output, file = "./data/output.csv"
+    , sep = ","
+    , col.names = TRUE
+    , quote = FALSE
+    , row.names = FALSE
+)
+
+
 weight_sum <- sum(
   1 / xgb_outcome$rmse
   , 1 / glm_outcome$rmse
@@ -440,12 +536,12 @@ meta_data_test$rf_pre <- meta_data_test$rf_pre * 1 / rf_outcome$rmse / weight_su
 
 pre <- apply(meta_data_test, 1, sum)
 
-output <- data.frame(
+output_2 <- data.frame(
   ID = test_id
   , SalePrice = expm1(pre)
 )
 
-write.table(output, file = "output.csv"
+write.table(output_2, file = "./data/output_2.csv"
     , sep = ","
     , col.names = TRUE
     , quote = FALSE
@@ -453,80 +549,15 @@ write.table(output, file = "output.csv"
 )
 
 
+rmse_table <- data.frame(
+  xgb_train_rmse = xgb_outcome$rmse
+  , glm_train_rmse = glm_outcome$rmse
+  , rf_train_rmse = rf_outcome$rmse
+  , lgb_train_rmse = lightgbm_best$rmse_scores
+)
+
+print(rmse_table)
+
+lightgbm_best$best_params
 
 
-# #grid search
-# #create hyperparameter grid
-# hyper_grid <- expand.grid(
-#   max_depth = seq(7, 10, 1)
-#   , num_leaves = seq(30, 35, 1)
-#   , num_iterations = seq(210, 300, 30)
-#   , learning_rate = seq(.1, .2, .05)
-# )
-# hyper_grid <- unique(hyper_grid)
-
-# nrow(hyper_grid)
-
-# # lgb_data <- lgb.Dataset(
-# #   as.matrix(meta_data[, -ncol(meta_data)])
-# #   , label = meta_data$y
-# # )
-
-# lightgbm_hyperparameter_tuning <- function(data, target_col, hyper_grid) {
-#   num_models <- nrow(hyper_grid)
-#   models <- vector("list", num_models)
-#   rmse_scores <- vector("numeric", num_models)
-
-#   for (i in 1:num_models) {
-#     params <- hyper_grid[i, ]
-#     max_depth <- as.integer(params[["max_depth"]])
-#     num_leaves <- as.integer(params[["num_leaves"]])
-#     num_iterations <- as.integer(params[["num_iterations"]])
-#     learning_rate <- params[["learning_rate"]]
-
-#     lgb_data <- lgb.Dataset(
-#       data = as.matrix(data[, !(names(data) %in% target_col)])
-#       , label = data[[target_col]]
-#     )
-
-#     model <- lgb.train(
-#       data = lgb_data,
-#       params = list(
-#         objective = "regression",
-#         metric = "rmse",
-#         max_depth = max_depth,
-#         num_leaves = num_leaves,
-#         num_iterations = num_iterations,
-#         learning_rate = learning_rate
-#       )
-#     )
-
-#     models[[i]] <- model
-#     model_pre <- predict(
-#       model
-#       , as.matrix(data[, !(names(data) %in% target_col)])
-#     )
-#     rmse_scores[i] <- sqrt(mean((data[[target_col]] - model_pre) ^ 2))
-#   }
-
-#   best_model_index <- which.min(rmse_scores)
-#   best_model <- models[[best_model_index]]
-#   best_params <- hyper_grid[best_model_index, ]
-#   best_rmse <- rmse_scores[best_model_index ]
-
-#   return(list(
-#     best_model = best_model,
-#     best_params = best_params,
-#     rmse_scores = best_rmse
-#   ))
-# }
-
-
-# lightgbm_best <- lightgbm_hyperparameter_tuning(
-#   data = meta_data
-#   , target_col = "y"
-#   , hyper_grid = hyper_grid
-# )
-
-
-# lgb_test_pre <- predict(lightgbm_best$best_model, as.matrix(meta_data_test))
