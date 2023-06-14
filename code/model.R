@@ -5,8 +5,7 @@ if (length(args) == 0) {
   stop("[USAGE] Rscript model.R 
     --train train.csv 
     --test test.csv
-    --output_1 output_1.csv
-    --output_2 output_2.csv"
+    --outputpath path"
     , call. = FALSE
     )
 }
@@ -14,29 +13,30 @@ if (length(args) == 0) {
 # get input & output path
 f_train <- NA
 f_test <- NA
-f_out_1 <- NA
-f_out_2 <- NA
+f_out_path <- NA
 
 # parse input & output
 for (i in args) {
   if (i == "--train") {
-    f_train <- args[which(args == i)+1]
+    f_train <- args[which(args == i) + 1]
   }
   if (i == "--test") {
-    f_test <- args[which(args == i)+1]
+    f_test <- args[which(args == i) + 1]
   }
-  if (i == "--output_1") {
-    f_out_1 <- args[which(args == i)+1]
-  }
-  if (i == "--output_2") {
-    f_out_2 <- args[which(args == i)+1]
+  if (i == "--outputpath") {
+    f_out_path <- args[which(args == i) + 1]
   }
 }
 
 # check file exists or not
 if (!file.exists(f_train)) {
-  stop((sprintf("%s does't exist", f_train)), call.=FALSE)
+  stop((sprintf("%s does't exist", f_train)), call. = FALSE)
 }
+if (!file.exists(f_test)) {
+  stop((sprintf("%s does't exist", f_test)), call. = FALSE)
+}
+
+
 
 
 library(ggplot2)
@@ -593,7 +593,7 @@ output <- data.frame(
   , SalePrice = expm1(lgb_test_pre)
 )
 
-write.table(output, file = paste0("./results/", "lightgbm_output.csv")
+write.table(output, file = paste0(f_out_path, "lightgbm_output.csv")
     , sep = ","
     , col.names = TRUE
     , quote = FALSE
@@ -605,7 +605,7 @@ output_3 <- data.frame(
   , SalePrice = expm1(meta_data_test$xgb_pre)
 )
 
-write.table(output_3, file = paste0("./results/", "xgb_output.csv")
+write.table(output_3, file = paste0(f_out_path, "xgb_output.csv")
     , sep = ","
     , col.names = TRUE
     , quote = FALSE
@@ -617,7 +617,7 @@ output_4 <- data.frame(
   , SalePrice = expm1(meta_data_test$glm_pre)
 )
 
-write.table(output_4, file = paste0("./results/", "glm_output.csv")
+write.table(output_4, file = paste0(f_out_path, "glm_output.csv")
     , sep = ","
     , col.names = TRUE
     , quote = FALSE
@@ -629,7 +629,7 @@ output_5 <- data.frame(
   , SalePrice = expm1(meta_data_test$rf_pre)
 )
 
-write.table(output_5, file = paste0("./results/", "rf_output.csv")
+write.table(output_5, file = paste0(f_out_path, "rf_output.csv")
     , sep = ","
     , col.names = TRUE
     , quote = FALSE
@@ -657,7 +657,7 @@ output_2 <- data.frame(
   , SalePrice = expm1(pre)
 )
 
-write.table(output_2, file = paste0("./results/", "3model_weight_output.csv")
+write.table(output_2, file = paste0(f_out_path, "3model_weight_output.csv")
     , sep = ","
     , col.names = TRUE
     , quote = FALSE
@@ -678,7 +678,7 @@ rmse_table <- data.frame(
   , glm_test_rmse = 0.14625
 )
 
-write.table(rmse_table, file = "./results/rmse.csv"
+write.table(rmse_table, file = paste0(f_out_path, "rmse.csv")
     , sep = ","
     , col.names = TRUE
     , quote = FALSE

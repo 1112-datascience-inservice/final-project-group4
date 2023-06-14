@@ -1,2 +1,0 @@
-xgb_train_rmse,glm_train_rmse,rf_train_rmse,lgb_train_rmse,stack_test_rmse,ensemble_test_rmse
-0.120658221672106,0.149429624041913,0.1363760143381,0.0741029746173632,0.13791,0.13199
