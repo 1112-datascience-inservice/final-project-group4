@@ -1,5 +1,5 @@
-args = commandArgs(trailingOnly=TRUE)
-if (length(args)==0) {
+args <- commandArgs(trailingOnly=TRUE)
+if (length(args) == 0) {
   stop("[USAGE] Rscript finalproject_EDA.R --train data/train.csv", call.=FALSE)
 }
 # get input, output path, and fold
@@ -8,16 +8,18 @@ f_in_train <- NA
 
 # parse input, output, and fold
 for (i in seq_along(args)) {
-  if (args[i] == '--train') {
+  if (args[i] == "--train") {
     f_in_train <- args[i+1]
-  } 
+  }
 }
 # check whether there is input, output, or fold
 if (is.na(f_in_train)) {
-  stop("Unable to identify input file, please use --train Data/train.csv", call.=FALSE)
+  stop("Unable to identify input file, please use --train Data/train.csv"
+  , call. = FALSE
+  )
 }
 if (!file.exists(f_in_train)) {
-  stop((sprintf("%s doesn't exist", f_in_train)), call.=FALSE)
+  stop((sprintf("%s doesn't exist", f_in_train)), call. = FALSE)
 }
 
 message("input train file = ", f_in_train)
@@ -34,7 +36,7 @@ library(gplots)
 
 
 # 讀取csv檔案
-train <- read.table("/Users/Jie/Desktop/final-project-group4/data/train.csv", sep = ",", header = TRUE)
+train <- read.table("/home/sheephy/文件/nccu/DataScience/final-project-group4/data/train.csv", sep = ",", header = TRUE)
 
 # 觀察離群值
 ggplot(train, aes(x = GrLivArea, y = SalePrice)) +
@@ -113,3 +115,5 @@ cat(paste("mu =", round(mu, 2), "and sigma =", round(sigma, 2), "\n"))
 qqnorm(train$SalePrice, main = "New quantile-quantile plot")
 qqline(train$SalePrice)
 grid()
+
+

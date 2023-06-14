@@ -1,3 +1,44 @@
+rm(list = ls())
+args <- commandArgs(trailingOnly = TRUE)
+
+if (length(args) == 0) {
+  stop("[USAGE] Rscript model.R 
+    --train train.csv 
+    --test test.csv
+    --output_1 output_1.csv
+    --output_2 output_2.csv"
+    , call. = FALSE
+    )
+}
+
+# get input & output path
+f_train <- NA
+f_test <- NA
+f_out_1 <- NA
+f_out_2 <- NA
+
+# parse input & output
+for (i in args) {
+  if (i == "--train") {
+    f_train <- args[which(args == i)+1]
+  }
+  if (i == "--test") {
+    f_test <- args[which(args == i)+1]
+  }
+  if (i == "--output_1") {
+    f_out_1 <- args[which(args == i)+1]
+  }
+  if (i == "--output_2") {
+    f_out_2 <- args[which(args == i)+1]
+  }
+}
+
+# check file exists or not
+if (!file.exists(f_train)) {
+  stop((sprintf("%s does't exist", f_train)), call.=FALSE)
+}
+
+
 library(ggplot2)
 library(dplyr)
 library(magrittr)
@@ -5,43 +46,80 @@ library(MASS)
 library(caret)
 library(janitor)
 library(fitdistrplus)
-
+library(gplots)
 library(randomForest)
 library(lightgbm)
 library(xgboost)
 
 
-train <- read.table("data/train.csv", sep = ",", header = TRUE)
-test <- read.table("data/test.csv", sep = ",", header = TRUE)
+train <- read.table(f_train, sep = ",", header = TRUE)
+test <- read.table(f_test, sep = ",", header = TRUE)
 train_id <- train$Id
 test_id <- test$Id
 
-train <- train[, -1]
-test <- test[, -1]
 
 
+# 觀察離群值
+ggplot(train, aes(x = GrLivArea, y = SalePrice)) +
+  geom_point() +
+  geom_text(aes(label = Id), vjust = -1, hjust = 1, size = 3) +
+  labs(y = "SalePrice", x = "GrLivArea") +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::comma)
+
+
+# 計算平均數和標準差
+mean_value <- mean(train$SalePrice)
+sd_value <- sd(train$SalePrice)
 
 # Plot the distribution
 ggplot(train, aes(x = SalePrice)) +
   geom_density() +
   geom_histogram(aes(y = ..density..), alpha = 0.5, fill = "lightblue") +
-  stat_function(fun = dnorm
-    , args = list(mean = mean(train$SalePrice)
-    , sd = sd(train$SalePrice)), color = "red") +
-  labs(x = "SalePrice", y = "Density") +
-  ggtitle("SalePrice Distribution")
+  stat_function(fun = dnorm, args = list(
+    mean = mean_value, sd = sd_value), color = "red") +
+    geom_text(x = mean_value, y = 0
+    , label = paste("Mean:", round(mean_value, 2))
+    , vjust = 1, hjust = 0, color = "blue") +
+    geom_text(x = mean_value, y = 0
+    , label = paste("SD:", round(sd_value, 2))
+    , vjust = -1, hjust = 0, color = "blue") +
+  labs(x = "SalePrice", y = "Frequency") +
+  ggtitle("SalePrice Distribution") +
+  scale_x_continuous(labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma)
 
 # Get the fitted parameters
-fit <- fitdist(train$SalePrice, "norm")
+fit <- fitdist(as.vector(train$SalePrice), "norm")
 mu <- fit$estimate["mean"]
 sigma <- fit$estimate["sd"]
 print(paste("mu =", round(mu, 2), "and sigma =", round(sigma, 2)))
 
 # Plot the QQ-plot
-qqnorm(train$SalePrice, main = "QQ-plot")
+qqnorm(train$SalePrice, main = "quantile-quantile plot")
+  scale_y_continuous(labels = scales::comma)
 qqline(train$SalePrice)
-grid()
 
+# 數值型特徵相關性矩陣圖
+train_data <- train[,2:81]
+numeric_train <- train_data[sapply(train_data, is.numeric)]
+numeric_train[is.na(numeric_train)] <- 0
+# 計算相關係數
+corrmat <- cor(numeric_train)
+
+# 設定顏色映射
+colors <- colorRampPalette(c("blue", "white", "red"))(100)
+
+# 繪製特徵熱圖並標示相關程度數值
+heatmap.2(corrmat, col = colors, main = "Correlation Heatmap", scale = "none",
+          trace = "none", key = TRUE, key.title = "Correlation"
+          , key.xlab = NULL, key.ylab = NULL
+          , keysize = 1, density.info = "none"
+          , cexRow = 0.8, cexCol = 0.8
+          , margins = c(10, 10), srtCol = 90, adjCol = c(0.8, 0.5)
+          )
+# 調整圖表大小
+par(mar = c(8, 4, 4, 8) + 0.1)
 
 # 做對數變換，讓資料接近正態分佈
 train$SalePrice <- log1p(train$SalePrice)
@@ -51,10 +129,10 @@ ggplot(train, aes(x = SalePrice)) +
   geom_density() +
   geom_histogram(aes(y = ..density..), alpha = 0.5, fill = "lightblue") +
   stat_function(fun = dnorm
-    , args = list(mean = mean(train$SalePrice)
-    , sd = sd(train$SalePrice)), color = "red") +
+                , args = list(mean = mean(train$SalePrice)
+                              , sd = sd(train$SalePrice)), color = "red") +
   labs(x = "SalePrice", y = "Density") +
-  ggtitle("SalePrice Distribution")
+  ggtitle("New SalePrice Distribution")
 
 # 取得函數使用的擬合參數
 fit <- fitdist(train$SalePrice, "norm")
@@ -63,9 +141,14 @@ sigma <- fit$estimate["sd"]
 cat(paste("mu =", round(mu, 2), "and sigma =", round(sigma, 2), "\n"))
 
 # 繪製分佈圖
-qqnorm(train$SalePrice, main = "QQ-plot")
+qqnorm(train$SalePrice, main = "New quantile-quantile plot")
 qqline(train$SalePrice)
 grid()
+
+
+train <- train[, -1]
+test <- test[, -1]
+
 
 # 遺失值處理
 ntrain <- nrow(train)
@@ -403,9 +486,9 @@ meta_data <- data.frame(
 #grid search
 #create hyperparameter grid
 hyper_grid <- expand.grid(
-  max_depth = seq(3, 9, 2)
+  max_depth = seq(3, 7, 2)
   , num_leaves = seq(10, 30, 10)
-  , num_iterations = seq(20, 100, 20)
+  , num_iterations = seq(20, 80, 20)
   , learning_rate = seq(.3, .5, .1)
 )
 hyper_grid <- unique(hyper_grid)
@@ -468,13 +551,6 @@ lightgbm_best <- lightgbm_hyperparameter_tuning(
   , hyper_grid = hyper_grid
 )
 
-meta_data_test <- data.frame(
-  xgb_pre = xgb_predict(xgb_outcome$models, test_data)
-  , glm_pre = glm_predict(glm_outcome$models, test_data)
-  , rf_pre = glm_predict(glm_outcome$models, test_data)
-)
-
-
 xgb_predict <- function(models, test_data) {
   num_models <- length(models)
   predictions <- vector("list", num_models)
@@ -517,7 +593,43 @@ output <- data.frame(
   , SalePrice = expm1(lgb_test_pre)
 )
 
-write.table(output, file = "./result/output.csv"
+write.table(output, file = paste0("./results/", "lightgbm_output.csv")
+    , sep = ","
+    , col.names = TRUE
+    , quote = FALSE
+    , row.names = FALSE
+)
+
+output_3 <- data.frame(
+  ID = test_id
+  , SalePrice = expm1(meta_data_test$xgb_pre)
+)
+
+write.table(output_3, file = paste0("./results/", "xgb_output.csv")
+    , sep = ","
+    , col.names = TRUE
+    , quote = FALSE
+    , row.names = FALSE
+)
+
+output_4 <- data.frame(
+  ID = test_id
+  , SalePrice = expm1(meta_data_test$glm_pre)
+)
+
+write.table(output_4, file = paste0("./results/", "glm_output.csv")
+    , sep = ","
+    , col.names = TRUE
+    , quote = FALSE
+    , row.names = FALSE
+)
+
+output_5 <- data.frame(
+  ID = test_id
+  , SalePrice = expm1(meta_data_test$rf_pre)
+)
+
+write.table(output_5, file = paste0("./results/", "rf_output.csv")
     , sep = ","
     , col.names = TRUE
     , quote = FALSE
@@ -531,9 +643,12 @@ weight_sum <- sum(
   , 1 / rf_outcome$rmse
 )
 
-meta_data_test$xgb_pre <- meta_data_test$xgb_pre * 1 / xgb_outcome$rmse / weight_sum
-meta_data_test$glm_pre <- meta_data_test$glm_pre * 1 / glm_outcome$rmse / weight_sum
-meta_data_test$rf_pre <- meta_data_test$rf_pre * 1 / rf_outcome$rmse / weight_sum
+meta_data_test$xgb_pre <-
+  meta_data_test$xgb_pre * 1 / xgb_outcome$rmse / weight_sum
+meta_data_test$glm_pre <-
+  meta_data_test$glm_pre * 1 / glm_outcome$rmse / weight_sum
+meta_data_test$rf_pre <-
+  meta_data_test$rf_pre * 1 / rf_outcome$rmse / weight_sum
 
 pre <- apply(meta_data_test, 1, sum)
 
@@ -542,7 +657,7 @@ output_2 <- data.frame(
   , SalePrice = expm1(pre)
 )
 
-write.table(output_2, file = "./result/output_2.csv"
+write.table(output_2, file = paste0("./results/", "3model_weight_output.csv")
     , sep = ","
     , col.names = TRUE
     , quote = FALSE
@@ -550,11 +665,22 @@ write.table(output_2, file = "./result/output_2.csv"
 )
 
 
+
+
 rmse_table <- data.frame(
   xgb_train_rmse = xgb_outcome$rmse
   , glm_train_rmse = glm_outcome$rmse
   , rf_train_rmse = rf_outcome$rmse
   , lgb_train_rmse = lightgbm_best$rmse_scores
+  , lgb_test_rmse = 0.1358
+  , weight_test_rmse = 0.13199
+  , xgb_test_rmse = 0.12929
+  , rf_test_rmse = 0.14625
 )
 
-
+write.table(rmse_table, file = "./results/rmse.csv"
+    , sep = ","
+    , col.names = TRUE
+    , quote = FALSE
+    , row.names = FALSE
+)
