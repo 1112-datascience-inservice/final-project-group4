@@ -1,2 +1,2 @@
-xgb_train_rmse,glm_train_rmse,rf_train_rmse,lgb_train_rmse,lgb_test_rmse,weight_test_rmse,xgb_test_rmse,rf_test_rmse
-0.120658221672106,0.149429624041913,0.1363760143381,0.0797964503666124,0.1358,0.13199,0.12929,0.14625
+xgb_train_rmse,glm_train_rmse,rf_train_rmse,lgb_train_rmse,lgb_test_rmse,weight_test_rmse,xgb_test_rmse,rf_test_rmse,glm_test_rmse
+0.120658221672106,0.149429624041913,0.1363760143381,0.0797964503666124,0.1358,0.13199,0.12929,0.14625,0.14625

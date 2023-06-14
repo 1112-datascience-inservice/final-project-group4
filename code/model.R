@@ -666,7 +666,6 @@ write.table(output_2, file = paste0("./results/", "3model_weight_output.csv")
 
 
 
-
 rmse_table <- data.frame(
   xgb_train_rmse = xgb_outcome$rmse
   , glm_train_rmse = glm_outcome$rmse
@@ -676,6 +675,7 @@ rmse_table <- data.frame(
   , weight_test_rmse = 0.13199
   , xgb_test_rmse = 0.12929
   , rf_test_rmse = 0.14625
+  , glm_test_rmse = 0.14625
 )
 
 write.table(rmse_table, file = "./results/rmse.csv"
