@@ -1,5 +1,4 @@
-# [Group4] your projrct title
-Predict House Sales Prices
+# [Group4] Predict House Sales Prices
 
 ## Contributors
 |組員|系級|學號|工作分配|
