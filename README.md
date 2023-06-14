@@ -2,19 +2,18 @@
 
 ## Contributors
 |組員|系級|學號|工作分配|
+|----------------|----------------|---------------|----------------|
 |孫詩傑|資科碩專二|110971006|程式碼建構、簡報製作|
-|xxx|資科碩專二|xxx|團隊中的吉祥物🦒，負責增進團隊氣氛| 
-|xxx|資科碩專二|xxx|團隊的中流砥柱，一個人打十個|
-|xxx|資科碩專二|xxx|團隊的中流砥柱，一個人打十個|
+|許芳耀|資科碩專二|110971025|程式碼、Readme撰寫| 
+|李昂縣|資科碩專二|110971018|簡報製作|
+|陳韻清|資科碩專二|110971027|shiny製作|
 
 ## Quick start
-You might provide an example commend or few commends to reproduce your analysis, i.e., the following R script
+
 ```R
 Rscript code/your_script.R --input data/training --output results/performance.tsv
 ```
 
-## Folder organization and its related description
-idea by Noble WS (2009) [A Quick Guide to Organizing Computational Biology Projects.](https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1000424) PLoS Comput Biol 5(7): e1000424.
 
 ### docs
 * Your presentation, 1112_DS-FP_groupID.ppt/pptx/pdf (i.e.,1112_DS-FP_group1.ppt), by **06.08**
@@ -22,10 +21,6 @@ idea by Noble WS (2009) [A Quick Guide to Organizing Computational Biology Proje
   * i.e., software user guide
 
 ### data
-
-
-
-
 
 * Input
   * Source
@@ -50,14 +45,37 @@ idea by Noble WS (2009) [A Quick Guide to Organizing Computational Biology Proje
 - 最終將類別型特徵進行One-Hot-Encode
 
 #### 建立模型
-- 本次採用3模型進行Stacking，分別是**Linear Regression**、**Random Forest**以及**XGBoost**，透過k-fold方式計算各模型**RMSE**數值，並作為最終計算權重
+- 本次採用3基本模型(Base-Model)進行Stacking
+  1. **Linear Regression**
+  2. **Random Forest**
+  3. **XGBoost**
+
+- 透過k-fold方式進行cross validation並計算各模型在training階段的**RMSE**數值
+- 元模型(Meta-Model)則採用LightGBM進行，透過元模型將基本模型的預測值進行結合。
+
+- 最終採用兩方式進行Ensemble
+  1. 透過LightGBM將基本模型的預測值進行結合
+  2. 透過3基本模型在training階段的rmse，進行權重分配，計算最終testing預測值
 
 ### results
-* What is a null model for comparison?
-* How do your perform evaluation?
-  * Cross-validation, or extra separated data
+
+#### Trainging Stage
+
+| xgb_train_rmse | glm_train_rmse | rf_train_rmse | lgb_train_rmse |
+|----------------|----------------|---------------|----------------|
+| 0.120658222    | 0.149429624    | 0.136376014   | 0.074102975    |
+
+#### Testing Stage
+
+| LightGBM_test_rmse | ensemble_test_rmse |
+|-----------------|--------------------|
+| 0.13791         | 0.13199            |
+
 
 ## References
+- Packages
+  - ggplot2、dplyr、magrittr、MASS、caret、janitor、fitdistrplus
+  - randomForest、lightgbm、xgboost
 
-* Packages you use
-* Related publications
+- Related publications
+  - [kaggle example](https://www.kaggle.com/serigne/stacked-regressions-top-4-on-leaderboard)

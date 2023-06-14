@@ -4,10 +4,11 @@ library(magrittr)
 library(MASS)
 library(caret)
 library(janitor)
-library(xgboost)
-library(randomForest)
 library(fitdistrplus)
+
+library(randomForest)
 library(lightgbm)
+library(xgboost)
 
 
 train <- read.table("data/train.csv", sep = ",", header = TRUE)
@@ -516,7 +517,7 @@ output <- data.frame(
   , SalePrice = expm1(lgb_test_pre)
 )
 
-write.table(output, file = "./data/output.csv"
+write.table(output, file = "./result/output.csv"
     , sep = ","
     , col.names = TRUE
     , quote = FALSE
@@ -541,7 +542,7 @@ output_2 <- data.frame(
   , SalePrice = expm1(pre)
 )
 
-write.table(output_2, file = "./data/output_2.csv"
+write.table(output_2, file = "./result/output_2.csv"
     , sep = ","
     , col.names = TRUE
     , quote = FALSE
@@ -555,9 +556,5 @@ rmse_table <- data.frame(
   , rf_train_rmse = rf_outcome$rmse
   , lgb_train_rmse = lightgbm_best$rmse_scores
 )
-
-print(rmse_table)
-
-lightgbm_best$best_params
 
 
