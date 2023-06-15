@@ -63,13 +63,13 @@ Rscript code/your_script.R --input data/training --output results/performance.ts
 
 | xgb_train_rmse | glm_train_rmse | rf_train_rmse | lgb_train_rmse |
 |----------------|----------------|---------------|----------------|
-| 0.120658222    | 0.149429624    | 0.136376014   | 0.074102975    |
+| 0.120658222    | 0.149429624    | 0.136376014   | 0.07979645     |
 
 #### Testing Stage
 
-| LightGBM_test_rmse | ensemble_test_rmse |
-|-----------------|--------------------|
-| 0.13791         | 0.13199            |
+| lgb_test_rmse | weight_test_rmse | xgb_test_rmse | rf_test_rmse | glm_test_rmse |
+|---------------|------------------|---------------|--------------|---------------|
+| 0.1358        | 0.13199          | 0.12929       | 0.14625      | 0.14625       |
 
 
 ## References
