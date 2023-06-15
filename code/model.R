@@ -96,9 +96,10 @@ sigma <- fit$estimate["sd"]
 print(paste("mu =", round(mu, 2), "and sigma =", round(sigma, 2)))
 
 # Plot the QQ-plot
-qqnorm(train$SalePrice, main = "quantile-quantile plot")
-  scale_y_continuous(labels = scales::comma)
+options(scipen = 999999)
+qqnorm(train$SalePrice, main = "quantile-quantile plot", ylab = "Ordered Values")
 qqline(train$SalePrice)
+grid()
 
 # 數值型特徵相關性矩陣圖
 train_data <- train[,2:81]
@@ -131,7 +132,7 @@ ggplot(train, aes(x = SalePrice)) +
   stat_function(fun = dnorm
                 , args = list(mean = mean(train$SalePrice)
                               , sd = sd(train$SalePrice)), color = "red") +
-  labs(x = "SalePrice", y = "Density") +
+  labs(x = "SalePrice", y = "Frequency") +
   ggtitle("New SalePrice Distribution")
 
 # 取得函數使用的擬合參數
